@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Лабиринт: Нинтя и Динозавр</title>
+  <style>
+    :root {
+      --bg: #090d18;
+      --panel: #121a2f;
+      --panel-2: #1a2747;
+      --line: #32466f;
+      --text: #eef4ff;
+      --accent: #6c8cff;
+      --danger: #ff6785;
+      --success: #4be39b;
+      --cell: min(8.5vw, 34px);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 15%, #1a2850 0%, #0d142a 42%, #060a14 100%);
+      display: grid;
+      place-items: center;
+      padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+    }
+
+    .app {
+      width: min(100%, 420px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+    }
+
+    .top {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background: color-mix(in srgb, var(--panel) 85%, transparent);
+      border: 1px solid #25375d;
+      border-radius: var(--radius);
+      padding: 8px;
+      backdrop-filter: blur(4px);
+    }
+
+    button {
+      border: 1px solid #2b426d;
+      border-radius: 12px;
+      color: var(--text);
+      background: linear-gradient(180deg, #2a3f69 0%, #1b2b4e 100%);
+      padding: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      min-height: 48px;
+    }
+
+    button:active {
+      transform: scale(0.98);
+      filter: brightness(1.1);
+    }
+
+    .board-wrap {
+      background: color-mix(in srgb, var(--panel) 88%, transparent);
+      border: 1px solid #2b416b;
+      border-radius: var(--radius);
+      padding: 10px;
+      position: relative;
+      overflow: hidden;
+      min-height: 420px;
+      display: grid;
+      align-content: start;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      opacity: 0.95;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #maze {
+      display: grid;
+      gap: 2px;
+      justify-content: center;
+      align-content: center;
+      padding: 2px;
+      background: #0e1731;
+      border: 1px solid #2d4673;
+      border-radius: 12px;
+      width: fit-content;
+      margin: 0 auto;
+    }
+
+    .cell {
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      font-size: calc(var(--cell) * 0.65);
+      line-height: 1;
+    }
+
+    .wall {
+      background: linear-gradient(145deg, #2e436b, #1c2a4b);
+      box-shadow: inset 0 0 0 1px #405d8f;
+    }
+
+    .path {
+      background: #0b1226;
+      box-shadow: inset 0 0 0 1px #1e2f52;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(7, 12, 24, 0.82);
+      display: none;
+      place-items: center;
+      text-align: center;
+      padding: 20px;
+      font-size: 24px;
+      font-weight: 800;
+      z-index: 2;
+    }
+
+    .overlay.show {
+      display: grid;
+    }
+
+    .overlay small {
+      display: block;
+      font-size: 16px;
+      margin-top: 8px;
+      font-weight: 600;
+      opacity: 0.92;
+    }
+
+    .overlay.win { color: var(--success); }
+    .overlay.lose { color: var(--danger); }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(74px, 1fr));
+      gap: 8px;
+      justify-items: center;
+      align-items: center;
+      background: color-mix(in srgb, var(--panel) 88%, transparent);
+      border: 1px solid #25375d;
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .dir {
+      width: 100%;
+      font-size: 22px;
+      min-height: 58px;
+      background: linear-gradient(180deg, #314b7f 0%, #243b66 100%);
+    }
+
+    .ghost { visibility: hidden; }
+
+    @media (max-height: 740px) {
+      :root { --cell: min(7.5vw, 30px); }
+      .board-wrap { min-height: 360px; }
+      .dir { min-height: 52px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="top">
+      <button id="restartBtn" type="button">Начать заново</button>
+      <button id="nextBtn" type="button">Следующий лабиринт</button>
+    </section>
+
+    <section class="board-wrap">
+      <div class="hud">
+        <span id="levelInfo">Уровень 1</span>
+        <span id="statusInfo">Доберись до ⭐</span>
+      </div>
+      <div id="maze" aria-label="Игровое поле"></div>
+      <div id="overlay" class="overlay" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="controls" aria-label="Управление">
+      <div class="ghost">.</div>
+      <button class="dir" data-dir="up" type="button">↑</button>
+      <div class="ghost">.</div>
+      <button class="dir" data-dir="left" type="button">←</button>
+      <button class="dir" data-dir="down" type="button">↓</button>
+      <button class="dir" data-dir="right" type="button">→</button>
+    </section>
+  </main>
+
+  <script>
+    const levels = [
+      [
+        "#############",
+        "#S#   #   #F#",
+        "# # # # # # #",
+        "# # #   #   #",
+        "# ### ##### #",
+        "#   #   #   #",
+        "### # # # ###",
+        "#   # # #   #",
+        "# ### # ### #",
+        "#   # #   # #",
+        "# # # ### # #",
+        "# #   #   #D#",
+        "#############"
+      ],
+      [
+        "#############",
+        "#S    #   #F#",
+        "##### # # # #",
+        "#   # # #   #",
+        "# # # # ### #",
+        "# #   #     #",
+        "# ### ##### #",
+        "#   #     # #",
+        "### ##### # #",
+        "#   #   # # #",
+        "# ### # # # #",
+        "#D    #     #",
+        "#############"
+      ],
+      [
+        "#############",
+        "#S   #     F#",
+        "# ### # #####",
+        "#   # #     #",
+        "### # ##### #",
+        "#   #   #   #",
+        "# ##### # ###",
+        "#     # #   #",
+        "# ### # ### #",
+        "# #   #   # #",
+        "# # ##### # #",
+        "#D#       # #",
+        "#############"
+      ]
+    ];
+
+    const mazeEl = document.getElementById("maze");
+    const overlayEl = document.getElementById("overlay");
+    const levelInfoEl = document.getElementById("levelInfo");
+    const statusInfoEl = document.getElementById("statusInfo");
+    const restartBtn = document.getElementById("restartBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const dirButtons = document.querySelectorAll(".dir");
+
+    const state = {
+      levelIndex: 0,
+      grid: [],
+      player: { x: 0, y: 0 },
+      dino: { x: 0, y: 0 },
+      finish: { x: 0, y: 0 },
+      finished: false,
+      dinoTimer: null
+    };
+
+    function parseLevel(layout) {
+      const grid = layout.map((row) => row.split(""));
+      let player, dino, finish;
+
+      grid.forEach((row, y) => {
+        row.forEach((cell, x) => {
+          if (cell === "S") {
+            player = { x, y };
+            grid[y][x] = " ";
+          } else if (cell === "D") {
+            dino = { x, y };
+            grid[y][x] = " ";
+          } else if (cell === "F") {
+            finish = { x, y };
+            grid[y][x] = " ";
+          }
+        });
+      });
+
+      return { grid, player, dino, finish };
+    }
+
+    function startLevel(index) {
+      clearInterval(state.dinoTimer);
+      const safeIndex = (index + levels.length) % levels.length;
+      state.levelIndex = safeIndex;
+      const parsed = parseLevel(levels[safeIndex]);
+      state.grid = parsed.grid;
+      state.player = parsed.player;
+      state.dino = parsed.dino;
+      state.finish = parsed.finish;
+      state.finished = false;
+
+      overlayEl.className = "overlay";
+      overlayEl.textContent = "";
+      levelInfoEl.textContent = `Уровень ${safeIndex + 1}`;
+      statusInfoEl.textContent = "Доберись до ⭐";
+
+      draw();
+      state.dinoTimer = setInterval(moveDinoTowardPlayer, 420);
+    }
+
+    function draw() {
+      const rows = state.grid.length;
+      const cols = state.grid[0].length;
+      mazeEl.style.gridTemplateColumns = `repeat(${cols}, var(--cell))`;
+      mazeEl.innerHTML = "";
+
+      for (let y = 0; y < rows; y += 1) {
+        for (let x = 0; x < cols; x += 1) {
+          const div = document.createElement("div");
+          div.className = `cell ${state.grid[y][x] === "#" ? "wall" : "path"}`;
+
+          if (x === state.finish.x && y === state.finish.y) div.textContent = "⭐";
+          if (x === state.dino.x && y === state.dino.y) div.textContent = "🦖";
+          if (x === state.player.x && y === state.player.y) div.textContent = "🥷";
+
+          mazeEl.appendChild(div);
+        }
+      }
+    }
+
+    function canMoveTo(x, y) {
+      return state.grid[y] && state.grid[y][x] && state.grid[y][x] !== "#";
+    }
+
+    function showEnd(isWin) {
+      state.finished = true;
+      clearInterval(state.dinoTimer);
+      overlayEl.className = `overlay show ${isWin ? "win" : "lose"}`;
+      overlayEl.innerHTML = isWin
+        ? "Победа!<small>Нинтя дошёл до ⭐</small>"
+        : "Проигрыш!<small>Динозавр догнал нинтю 🦖</small>";
+      statusInfoEl.textContent = isWin ? "Победа" : "Проигрыш";
+    }
+
+    function checkGameState() {
+      if (state.player.x === state.finish.x && state.player.y === state.finish.y) {
+        showEnd(true);
+        return;
+      }
+      if (state.player.x === state.dino.x && state.player.y === state.dino.y) {
+        showEnd(false);
+      }
+    }
+
+    function movePlayer(dx, dy) {
+      if (state.finished) return;
+      const nx = state.player.x + dx;
+      const ny = state.player.y + dy;
+      if (!canMoveTo(nx, ny)) return;
+
+      state.player.x = nx;
+      state.player.y = ny;
+      checkGameState();
+      draw();
+    }
+
+    function getNeighbors(pos) {
+      const dirs = [
+        { x: pos.x + 1, y: pos.y },
+        { x: pos.x - 1, y: pos.y },
+        { x: pos.x, y: pos.y + 1 },
+        { x: pos.x, y: pos.y - 1 }
+      ];
+      return dirs.filter((p) => canMoveTo(p.x, p.y));
+    }
+
+    function moveDinoTowardPlayer() {
+      if (state.finished) return;
+
+      const startKey = `${state.dino.x},${state.dino.y}`;
+      const targetKey = `${state.player.x},${state.player.y}`;
+      const queue = [{ x: state.dino.x, y: state.dino.y }];
+      const visited = new Set([startKey]);
+      const prev = new Map();
+
+      while (queue.length) {
+        const current = queue.shift();
+        const key = `${current.x},${current.y}`;
+        if (key === targetKey) break;
+
+        getNeighbors(current).forEach((next) => {
+          const nextKey = `${next.x},${next.y}`;
+          if (visited.has(nextKey)) return;
+          visited.add(nextKey);
+          prev.set(nextKey, key);
+          queue.push(next);
+        });
+      }
+
+      if (!visited.has(targetKey)) return;
+
+      let stepKey = targetKey;
+      while (prev.get(stepKey) && prev.get(stepKey) !== startKey) {
+        stepKey = prev.get(stepKey);
+      }
+
+      const [nx, ny] = stepKey.split(",").map(Number);
+      state.dino.x = nx;
+      state.dino.y = ny;
+
+      checkGameState();
+      draw();
+    }
+
+    const keyMap = {
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0]
+    };
+
+    document.addEventListener("keydown", (event) => {
+      const move = keyMap[event.key];
+      if (!move) return;
+      event.preventDefault();
+      movePlayer(move[0], move[1]);
+    });
+
+    dirButtons.forEach((btn) => {
+      const dir = btn.dataset.dir;
+      const delta = dir === "up" ? [0, -1]
+        : dir === "down" ? [0, 1]
+        : dir === "left" ? [-1, 0]
+        : [1, 0];
+
+      btn.addEventListener("click", () => movePlayer(delta[0], delta[1]));
+      btn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        movePlayer(delta[0], delta[1]);
+      }, { passive: false });
+    });
+
+    restartBtn.addEventListener("click", () => startLevel(state.levelIndex));
+    nextBtn.addEventListener("click", () => startLevel(state.levelIndex + 1));
+
+    startLevel(0);
+  </script>
+</body>
+</html>
